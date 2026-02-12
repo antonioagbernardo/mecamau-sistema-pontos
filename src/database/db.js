@@ -5,6 +5,22 @@ const fs = require("fs");
 const defaultDbPath = path.join(process.cwd(), 'employees.db');
 const preferredPath = process.env.DB_FILE || defaultDbPath;
 
+function resolveDbPath(preferred, fallback){
+  const dir = path.dirname(preferred);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    // Test writability of directory
+    fs.accessSync(dir, fs.constants.W_OK);
+    return preferred;
+  } catch (e) {
+    console.warn("DB_FILE indisponível (", preferred, "):", e?.message, "→ usando", fallback);
+    try {
+      fs.mkdirSync(path.dirname(fallback), { recursive: true });
+    } catch(_){}
+    return fallback;
+  }
+}
+
 function migrations(db){
   // Use serialize to ensure statements run in order and apply lightweight migrations
   db.serialize(() => {
@@ -62,22 +78,14 @@ function migrations(db){
   });
 }
 
-function openDb(pathToOpen, allowFallback){
-  // try to ensure parent dir
-  try { fs.mkdirSync(path.dirname(pathToOpen), { recursive: true }); } catch(e) {}
-  const db = new sqlite3.Database(pathToOpen, (err) => {
-    if (err) {
-      console.error("Erro ao abrir banco:", err?.message);
-      if (allowFallback && pathToOpen !== defaultDbPath) {
-        console.warn("Caindo para DB local:", defaultDbPath);
-        return openDb(defaultDbPath, false);
-      }
-      return;
-    }
-    console.log("Banco conectado 🚀 (", pathToOpen, ")");
+const resolvedPath = resolveDbPath(preferredPath, defaultDbPath);
+const db = new sqlite3.Database(resolvedPath, (err) => {
+  if (err) {
+    console.error("Erro ao abrir banco:", err?.message);
+  } else {
+    console.log("Banco conectado 🚀 (", resolvedPath, ")");
     migrations(db);
-  });
-  module.exports = db;
-}
+  }
+});
 
-openDb(preferredPath, true);
+module.exports = db;
