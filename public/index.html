@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema de Pontos Mecamau</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+  <div class="w-full max-w-md mx-auto m-4">
+    <div class="flex flex-col items-center mb-4">
+      <img src="/logos/mecamau_logo.png" alt="Mecamau" class="w-28 h-28 object-contain drop-shadow"/>
+      <h1 class="text-2xl sm:text-3xl font-extrabold mt-3 text-center">Sistema de Pontos Mecamau</h1>
+    </div>
+
+    <div class="bg-white p-6 sm:p-8 rounded-xl shadow">
+
+    <input 
+      id="login" 
+      placeholder="Login"
+      class="w-full p-3 border rounded mb-3"
+    />
+
+    <input 
+      id="senha" 
+      type="password"
+      placeholder="Senha"
+      class="w-full p-3 border rounded mb-4"
+    />
+
+    <button 
+      onclick="entrar()" 
+      class="bg-blue-600 hover:bg-blue-700 text-white w-full p-3 rounded-lg">
+      Entrar
+    </button>
+
+    <p id="msg" class="text-red-500 mt-3 text-center"></p>
+    </div>
+  </div>
+
+<script>
+async function entrar() {
+  const login = document.getElementById("login").value;
+  const senha = document.getElementById("senha").value;
+
+  const res = await fetch("/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login, senha })
+  });
+
+  const data = await res.json().catch(()=>({}));
+
+  if (res.ok && data.message === "Login ok") {
+    // redirecionar baseado em papel
+    window.location.href = data.user?.is_admin ? "/admin" : "/dashboard";
+  } else {
+    document.getElementById("msg").innerText = data.message || "Falha no login";
+  }
+}
+</script>
+
+</body>
+</html>

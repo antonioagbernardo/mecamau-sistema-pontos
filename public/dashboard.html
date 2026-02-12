@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meu Desempenho — Sistema de Pontos Mecamau</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Animação de listras na barra */
+    @keyframes moveStripes {
+      0% { background-position: 0 0; }
+      100% { background-position: 40px 0; }
+    }
+    .progress-animated {
+      background-image: repeating-linear-gradient(
+        45deg,
+        rgba(255,255,255,0.2) 0,
+        rgba(255,255,255,0.2) 10px,
+        rgba(255,255,255,0.35) 10px,
+        rgba(255,255,255,0.35) 20px
+      );
+      background-size: 40px 40px;
+      animation: moveStripes 1.2s linear infinite;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Header -->
+<header class="bg-white border-b shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+    <img src="/logos/mecamau_logo.png" alt="Mecamau" class="w-8 h-8 object-contain"/>
+    <h1 class="text-lg sm:text-xl font-bold">Sistema de Pontos Mecamau</h1>
+    <div class="ml-auto"></div>
+  </div>
+</header>
+
+<main class="flex items-center justify-center p-4">
+
+<div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-md mx-auto text-center">
+
+  <!-- FOTO -->
+  <img id="foto" class="w-24 h-24 rounded-full mx-auto mb-4 object-cover shadow"/>
+
+  <h1 id="nome" class="text-2xl font-bold mb-1"></h1>
+  <p class="text-gray-500 mb-6">Seu desempenho</p>
+
+  <!-- BARRA -->
+  <div class="w-full bg-gray-200 rounded-full h-9 mb-3 overflow-hidden shadow-inner">
+    <div id="barra"
+      class="h-9 rounded-full text-white flex items-center justify-center font-semibold tracking-wide transition-all duration-700 ease-out progress-animated"
+      style="width:0%">
+      <span id="barraText">0 pts</span>
+    </div>
+  </div>
+
+  
+
+  <!-- HISTÓRICO -->
+  <h2 class="text-lg font-bold mt-4 mb-3">Histórico</h2>
+  <div id="historico" class="text-left text-sm max-h-48 overflow-auto space-y-2"></div>
+
+  <!-- Atualização de dados pessoais -->
+  <h2 class="text-lg font-bold mt-8 mb-3">Atualizar meus dados</h2>
+  <div class="text-left space-y-2">
+    <input id="me_nome" class="border p-3 rounded w-full" placeholder="Nome" />
+    <input id="me_senha" type="password" class="border p-3 rounded w-full" placeholder="Nova senha (opcional)" />
+    <input id="me_foto" type="file" class="border p-3 rounded w-full" />
+    <button onclick="atualizarMe()" class="bg-blue-600 hover:bg-blue-700 text-white w-full p-3 rounded">Salvar alterações</button>
+    <p id="me_msg" class="text-green-600 text-center"></p>
+  </div>
+
+  </div>
+
+</main>
+
+<script>
+
+let currentUser = null;
+let previousPontos = 0;
+
+async function getMeOrRedirect(){
+  const res = await fetch('/me');
+  if(!res.ok){ window.location.href='/'; return null; }
+  const me = await res.json();
+  currentUser = me;
+  return me;
+}
+
+async function carregar(){
+  const me = currentUser || await getMeOrRedirect();
+  if(!me) return;
+
+  // 🔵 dados atualizados do usuário
+  const resUser = await fetch("/user/"+me.id);
+  const userAtual = await resUser.json();
+
+  document.getElementById("nome").innerText = userAtual.nome;
+
+  // 📸 FOTO
+  if(userAtual.foto){
+    document.getElementById("foto").src="/uploads/"+userAtual.foto;
+  }else{
+    document.getElementById("foto").src="https://i.imgur.com/6VBx3io.png";
+  }
+
+  // ⭐ pontos
+  const pontos = userAtual.pontos || 0;
+  const pct = Math.max(0, Math.min(pontos, 100));
+  const barra = document.getElementById("barra");
+  const barraText = document.getElementById("barraText");
+
+  // Cor dinâmica (vermelho -> amarelo -> verde)
+  const color = pontos < 40 ? '#ef4444' : (pontos < 80 ? '#f59e0b' : '#10b981');
+  barra.style.backgroundColor = color;
+
+  // Atualiza largura suavemente
+  requestAnimationFrame(() => { barra.style.width = pct + '%'; });
+
+  // Contagem animada do número
+  animateNumber(previousPontos, pontos, 700, (val) => {
+    barraText.textContent = Math.round(val) + ' pts';
+  });
+  previousPontos = pontos;
+
+  // Removido: rótulos de nível por solicitação
+
+  // 📜 histórico
+  const res = await fetch("/historico/"+me.id);
+  const data = await res.json();
+
+  let html="";
+  data.forEach(h=>{
+    const cor = h.pontos > 0 ? "text-green-600" : "text-red-500";
+
+    html += `
+      <div class="flex justify-between border-b pb-1">
+        <span class="${cor} font-bold">${h.pontos>0?'+':''}${h.pontos}</span>
+        <span class="text-gray-600">${h.motivo || '-'}</span>
+      </div>
+    `;
+  });
+
+  document.getElementById("historico").innerHTML = html;
+}
+
+getMeOrRedirect().then(()=>{
+  carregar();
+  // 🔄 auto atualizar a cada 5s (muito profissional)
+  setInterval(carregar,5000);
+});
+
+// Utilitário: animação numérica suave
+function animateNumber(from, to, duration, onUpdate) {
+  const start = performance.now();
+  const diff = to - from;
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    // easeOutCubic
+    const eased = 1 - Math.pow(1 - t, 3);
+    onUpdate(from + diff * eased);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+async function atualizarMe(){
+  const form = new FormData();
+  const nome = document.getElementById("me_nome").value;
+  const senha = document.getElementById("me_senha").value;
+  const foto = document.getElementById("me_foto").files[0];
+
+  if (nome) form.append("nome", nome);
+  if (senha) form.append("senha", senha);
+  if (foto) form.append("foto", foto);
+
+  const me = currentUser || await getMeOrRedirect();
+  if(!me) return;
+  const res = await fetch(`/usuarios/${me.id}`, { method: 'PUT', body: form });
+  const data = await res.json().catch(()=>({message:"Erro"}));
+
+  document.getElementById("me_msg").innerText = data.message || "Atualizado";
+  // Atualiza a UI
+  carregar();
+}
+
+</script>
+
+</body>
+</html>
