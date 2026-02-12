@@ -18,16 +18,16 @@
 
 <!-- Header -->
 <header class="bg-white border-b shadow-sm sticky top-0 z-10">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+  <div class="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3">
     <img src="/logos/mecamau_logo.png" alt="Mecamau" class="w-8 h-8 object-contain"/>
-    <div class="flex-1">
-      <h1 class="text-lg sm:text-xl font-bold">Sistema de Pontos Mecamau <span class="text-sm text-gray-500">— Painel Admin 👑</span></h1>
+    <div class="flex-1 min-w-0">
+      <h1 class="text-base sm:text-lg font-bold truncate">Sistema de Pontos Mecamau <span class="hidden sm:inline text-sm text-gray-500">— Painel Admin 👑</span></h1>
     </div>
-    <nav class="flex items-center gap-2">
-      <button onclick="goBack()" class="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-sm">Voltar</button>
-      <a href="/admin" class="px-3 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm">Painel</a>
-      <a href="/dashboard" class="px-3 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm">Desempenho</a>
-      <button onclick="logout()" class="px-3 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-sm">Sair</button>
+    <nav class="ml-auto w-full sm:w-auto flex flex-wrap items-center justify-end gap-2 overflow-x-auto">
+      <button onclick="goBack()" class="px-2 sm:px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm whitespace-nowrap">Voltar</button>
+      <a href="/admin" class="px-2 sm:px-3 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs sm:text-sm whitespace-nowrap">Painel</a>
+      <a href="/dashboard" class="px-2 sm:px-3 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs sm:text-sm whitespace-nowrap">Desempenho</a>
+      <button onclick="logout()" class="px-2 sm:px-3 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-xs sm:text-sm whitespace-nowrap">Sair</button>
     </nav>
   </div>
   </header>
@@ -107,9 +107,9 @@ async function carregarUsuarios(){
           </div>
           <div class="text-sm text-gray-500">Pontos: <span id="pts_${u.id}">${u.pontos||0}</span></div>
           <div class="w-full bg-gray-200 rounded-full h-4 mt-1 overflow-hidden">
-            <div id="bar_${u.id}" class="h-4 rounded-full text-white text-[10px] flex items-center justify-center transition-all duration-700 ease-out progress-animated" style="width:${pct}%; background-color:${color}">
-              <span id="bar_text_${u.id}">${u.pontos||0} pts</span>
-            </div>
+          <div class="w-full bg-gray-200 rounded-full h-4 mt-1 overflow-hidden relative">
+            <div id="bar_${u.id}" class="h-4 rounded-full transition-all duration-700 ease-out progress-animated" style="width:${pct}%; background-color:${color}"></div>
+            <span id="bar_text_${u.id}" class="absolute inset-0 flex items-center justify-center text-[10px]">${u.pontos||0} pts</span>
           </div>
         </div>
 
