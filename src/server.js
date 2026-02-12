@@ -62,6 +62,7 @@ function adminRequired(req, res, next) {
 // ROOT
 //
 app.get("/", (req, res) => { res.sendFile(path.join(process.cwd(), 'public', 'index.html')); });
+app.get("/healthz", (req, res) => res.status(200).json({ status: "ok" }));
 
 // Guard pages BEFORE static
 const sendFile = (p) => (req,res)=> res.sendFile(path.join(process.cwd(), 'public', p));
@@ -373,6 +374,6 @@ app.delete("/usuarios/:id", authRequired, adminRequired, (req, res) => {
   });
 });
 
-app.listen(PORT,()=>{
+app.listen(PORT,'0.0.0.0',()=>{
   console.log("Servidor rodando porta",PORT);
 });
