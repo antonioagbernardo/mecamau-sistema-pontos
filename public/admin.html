@@ -116,7 +116,7 @@ async function carregarUsuarios(){
 
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <b class="truncate">${u.nome}</b>
+            <b class="truncate sm:whitespace-normal sm:overflow-visible">${u.nome}</b>
             ${u.is_admin ? '<span class="text-purple-600 text-xs bg-purple-100 px-2 py-0.5 rounded">ADMIN</span>' : ''}
           </div>
           <div class="text-sm text-gray-500">Pontos: <span id="pts_${u.id}">${u.pontos||0}</span></div>
@@ -125,7 +125,7 @@ async function carregarUsuarios(){
             <span id="bar_text_${u.id}" class="absolute inset-0 flex items-center justify-center text-[10px]">${u.pontos||0} pts</span>
           </div>
 
-        <div class="hidden sm:flex items-center gap-1 flex-wrap">
+        <div class="hidden sm:flex items-center gap-1 flex-shrink-0 self-center">
           <button onclick="toggleEdit(${u.id})" class="bg-blue-600 text-white px-3 py-1 rounded">Editar</button>
           <button onclick="removerUsuario(${u.id})" class="bg-gray-700 text-white px-3 py-1 rounded">Remover</button>
         </div>
