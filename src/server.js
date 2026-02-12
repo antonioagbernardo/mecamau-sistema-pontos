@@ -17,8 +17,28 @@ app.set('trust proxy', 1);
 // Static for uploads & logos (configurable uploads path)
 const fs = require("fs");
 const path = require("path");
-const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+function ensureUploadsDir() {
+  const preferred = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+  try {
+    fs.mkdirSync(preferred, { recursive: true });
+    return preferred;
+  } catch (e) {
+    console.warn("Falha ao criar UPLOADS_DIR (", preferred, "):", e?.message);
+    const fallback = path.join(process.cwd(), 'uploads');
+    try {
+      fs.mkdirSync(fallback, { recursive: true });
+      console.warn("Usando pasta de uploads local:", fallback);
+      return fallback;
+    } catch (e2) {
+      console.error("Falha ao criar pasta de uploads local:", e2?.message);
+      // último recurso: ainda retornamos fallback; multer tentará e poderá falhar caso sem permissão
+      return fallback;
+    }
+  }
+}
+
+const UPLOADS_DIR = ensureUploadsDir();
 app.use("/uploads", express.static(UPLOADS_DIR));
 app.use("/logos", express.static("logos"));
 
