@@ -11,6 +11,20 @@
       background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 10px, rgba(255,255,255,0.35) 10px, rgba(255,255,255,0.35) 20px);
       background-size: 40px 40px; animation: moveStripes 1.2s linear infinite; 
     }
+
+    /* Make file input labels not expand full width on small screens */
+    @media (max-width: 640px) {
+      input[type="file"] {
+        max-width: 180px;
+        width: auto;
+        display: inline-block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+      }
+    }
+    input[type="file"] { cursor: pointer; }
   </style>
 </head>
 
