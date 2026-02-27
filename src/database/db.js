@@ -76,6 +76,24 @@ function migrations(db){
   )
   `);
 
+  // Garantir coluna editor_id no historico (quem lançou/alterou), compatível com bancos antigos
+  db.all("PRAGMA table_info(historico)", (err, rows) => {
+    if (err) {
+      console.error("Erro ao verificar colunas da tabela historico:", err);
+      return;
+    }
+    const cols = rows.map(r => r.name);
+    if (!cols.includes("editor_id")) {
+      db.run("ALTER TABLE historico ADD COLUMN editor_id INTEGER", (alterErr) => {
+        if (alterErr) {
+          console.error("Falha ao adicionar coluna editor_id:", alterErr);
+        } else {
+          console.log("Coluna adicionada: editor_id");
+        }
+      });
+    }
+  });
+
   // ⚙️ CONFIGURAÇÕES (key/value) — usado para Regras e Prêmio
   db.run(`
   CREATE TABLE IF NOT EXISTS settings (

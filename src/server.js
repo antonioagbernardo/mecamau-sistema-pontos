@@ -206,8 +206,8 @@ app.post("/pontos", authRequired, adminRequired, (req,res)=>{
       if (updErr) return res.status(500).json({message:"Erro ao atualizar"});
 
       db.run(
-        "INSERT INTO historico (user_id,tipo,pontos,motivo) VALUES (?,?,?,?)",
-        [userId, aplicado>=0?"ganhou":"perdeu", aplicado, motivoTrim]
+        "INSERT INTO historico (user_id,tipo,pontos,motivo,editor_id) VALUES (?,?,?,?,?)",
+        [userId, aplicado>=0?"ganhou":"perdeu", aplicado, motivoTrim, req.user.id]
       );
 
       res.json({ message:"Pontos atualizados ⭐", pontos: novo });
@@ -224,14 +224,13 @@ app.get("/historico/:id", authRequired, (req,res)=>{
     return res.status(403).json({ message: 'Acesso restrito' });
   }
 
-  db.all(
-    "SELECT * FROM historico WHERE user_id=? ORDER BY id DESC",
-    [id],
-    (err,rows)=>{
-      if(err) return res.send([]);
-      res.send(rows);
-    }
-  );
+  const sql = req.user.is_admin
+    ? `SELECT h.*, u.nome AS editor_nome FROM historico h LEFT JOIN users u ON u.id=h.editor_id WHERE h.user_id=? ORDER BY h.id DESC`
+    : `SELECT * FROM historico WHERE user_id=? ORDER BY id DESC`;
+  db.all(sql, [id], (err, rows) => {
+    if (err) return res.send([]);
+    res.send(rows);
+  });
 });
 
 //
@@ -405,9 +404,9 @@ app.post('/pontos/reset_all', authRequired, adminRequired, (req,res)=>{
     const runUpdate = (cb)=> db.run(`UPDATE users SET pontos=? WHERE is_admin=0`, [alvo], cb);
     runUpdate((updErr)=>{
       if (updErr) return res.status(500).json({message:'Erro ao aplicar reset'});
-      const stmt = db.prepare("INSERT INTO historico (user_id,tipo,pontos,motivo) VALUES (?,?,?,?)");
+      const stmt = db.prepare("INSERT INTO historico (user_id,tipo,pontos,motivo,editor_id) VALUES (?,?,?,?,?)");
       ids.forEach(id=>{
-        stmt.run([id, 'ciclo', alvo, `Novo ciclo: reset para ${alvo}. ${motivoTrim}`]);
+        stmt.run([id, 'ciclo', alvo, `Novo ciclo: reset para ${alvo}. ${motivoTrim}`.trim(), req.user.id]);
       });
       stmt.finalize(()=> res.json({message:`Pontos de todos definidos em ${alvo}` }));
     });
@@ -424,12 +423,12 @@ app.post('/pontos/bulk_add', authRequired, adminRequired, (req,res)=>{
   db.all("SELECT id, pontos FROM users WHERE is_admin=0", [], (err, users)=>{
     if (err) return res.status(500).json({message:'Erro ao buscar usuários'});
     const stmtUpd = db.prepare("UPDATE users SET pontos=? WHERE id=?");
-    const stmtHist = db.prepare("INSERT INTO historico (user_id,tipo,pontos,motivo) VALUES (?,?,?,?)");
+    const stmtHist = db.prepare("INSERT INTO historico (user_id,tipo,pontos,motivo,editor_id) VALUES (?,?,?,?,?)");
     users.forEach(u=>{
       const novo = Math.max(0, Math.min((u.pontos||0) + d, 100));
       const aplicado = novo - (u.pontos||0);
       stmtUpd.run([novo, u.id]);
-      stmtHist.run([u.id, aplicado>=0?'ganhou':'perdeu', aplicado, motivoTrim]);
+      stmtHist.run([u.id, aplicado>=0?'ganhou':'perdeu', aplicado, motivoTrim, req.user.id]);
     });
     stmtUpd.finalize(()=>{
       stmtHist.finalize(()=> res.json({message:`Pontos atualizados para ${users.length} usuários`}));
