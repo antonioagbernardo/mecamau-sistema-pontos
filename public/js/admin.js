@@ -20,6 +20,48 @@ let _editTimer = null;
 function startEditing(){ IS_EDITING = true; }
 function stopEditingSoon(){ clearTimeout(_editTimer); _editTimer = setTimeout(()=>{ IS_EDITING = false; }, 1200); }
 
+function snapshotInputs(){
+  const snap = { motivo:{}, valor:{}, edit:{} };
+  if (typeof document === 'undefined') return snap;
+  // pontos inputs
+  document.querySelectorAll('input[id^="motivo_"]').forEach(el=>{
+    const id = el.id.split('_')[1];
+    snap.motivo[id] = el.value;
+  });
+  document.querySelectorAll('input[id^="valor_\"]').forEach(el=>{
+    const id = el.id.split('_')[1];
+    snap.valor[id] = el.value;
+  });
+  // edit inputs
+  document.querySelectorAll('input[id^="ed_\"]').forEach(el=>{
+    const [_, field, id] = el.id.split('_');
+    if (!snap.edit[id]) snap.edit[id] = {};
+    if (el.type === 'checkbox') snap.edit[id][field] = el.checked;
+    else snap.edit[id][field] = el.value;
+  });
+  return snap;
+}
+
+function restoreInputs(snap){
+  if (!snap || typeof document === 'undefined') return;
+  Object.entries(snap.motivo||{}).forEach(([id,val])=>{
+    const el = document.getElementById('motivo_'+id);
+    if (el && val) el.value = val;
+  });
+  Object.entries(snap.valor||{}).forEach(([id,val])=>{
+    const el = document.getElementById('valor_'+id);
+    if (el && (val || val === 0)) el.value = val;
+  });
+  Object.entries(snap.edit||{}).forEach(([id,fields])=>{
+    Object.entries(fields).forEach(([field,val])=>{
+      const el = document.getElementById('ed_'+field+'_'+id);
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!val;
+      else if (val) el.value = val;
+    });
+  });
+}
+
 console.log('[admin.js] Chamando ensureAdmin...');
 ensureAdmin().catch(e => console.error('[admin.js] ensureAdmin falhou:', e));
 
@@ -30,6 +72,7 @@ function aplicarFiltro(){
 }
 
 function renderLista(users){
+  const snap = snapshotInputs();
   let html = '';
   const funcionarios = users.filter(u=>!u.is_admin);
   const admins = users.filter(u=>!!u.is_admin);
@@ -85,9 +128,7 @@ function renderLista(users){
           <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
           <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
           <input id="ed_senha_${u.id}" class="border p-2 rounded" placeholder="Nova senha (opcional)" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
-          <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" id="ed_admin_${u.id}" ${u.is_admin? 'checked' : ''} onchange="startEditing()" onblur="stopEditingSoon()"/> É admin
-          </label>
+          
           <input type="file" id="ed_foto_${u.id}" class="border p-2 rounded" onfocus="startEditing()" onchange="startEditing()" onblur="stopEditingSoon()"/>
         </div>
         <div class="flex gap-2 mt-3">
@@ -139,6 +180,7 @@ function renderLista(users){
       </div>`
   });
   document.getElementById('adminsLista').innerHTML = `<h3 class="text-lg font-semibold mb-2">Administradores (${admins.length})</h3>` + (adminsHtml || '<div class="text-gray-500">Nenhum administrador</div>');
+  restoreInputs(snap);
 }
 
 async function carregarUsuarios(manual=false){
@@ -333,7 +375,7 @@ setTimeout(() => {
   carregarUsuarios();
   console.log('[admin.js] Configurando setInterval para re-carregar a cada 5s');
   setInterval(()=>{
-    if (IS_EDITING) return; // pausa auto-refresh enquanto há edição
+    if (IS_EDITING || OPEN_EDIT.size > 0) return; // pausa enquanto houver edição aberta
     carregarUsuarios(true).then(()=>{
       OPEN_HIST.forEach(id => renderHistoricoFor(id));
     });
