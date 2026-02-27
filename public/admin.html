@@ -1,169 +1,179 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-}, 5000);
-
-async function renderHistoricoFor(id){
-  const el = document.getElementById('hist_'+id);
-  if (!el) return;
-  try {
-    const res = await fetch('/historico/'+id);
-    const data = await res.json();
-    let html = '';
-    data.forEach(h=>{
-      if (h.tipo === 'ciclo') {
-        html += `<div class="flex items-center gap-2 my-2"><hr class="flex-1"><span class="text-xs text-gray-500 whitespace-nowrap">Novo ciclo</span><hr class="flex-1"></div>`;
-      } else {
-        const cor = h.pontos > 0 ? 'text-green-600' : 'text-red-500';
-        const dt = h.data ? new Date(h.data).toLocaleString() : '';
-        const editor = h.editor_nome ? `<span class=\"text-xs text-gray-400\"> · por ${h.editor_nome}</span>` : '';
-        html += `<div class=\"border-b pb-1\">\n          <div class=\"flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2\">\n            <span class=\"text-gray-500\">${dt}</span>\n            <span class=\"${cor} font-bold\">${h.pontos>0?'+':''}${h.pontos}</span>\n            <span class=\"text-gray-600\">${h.motivo || '-'}${editor}</span>\n          </div>\n        </div>`;
-      }
-    });
-    el.innerHTML = html || '<div class="text-gray-500">Sem histórico</div>';
-  } catch (_) {
-    el.innerHTML = '<div class="text-red-600">Falha ao carregar histórico</div>';
-  }
-}
-
-async function toggleHistorico(id){
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel Admin — Sistema de Pontos Mecamau</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  const willOpen = el.classList.contains('hidden');
-  el.classList.toggle('hidden');
-  if (willOpen) { OPEN_HIST.add(id); renderHistoricoFor(id); } else { OPEN_HIST.delete(id); }
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        vertical-align: middle;
-      }
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .points-bar { background-color: #e5e7eb; border-radius: 9999px; height: 6px; margin: 8px 0; position: relative; overflow: hidden; }
+    .points-fill { background: linear-gradient(90deg, #06b6d4, #0891b2); transition: width 0.5s ease, background 0.3s ease; height: 100%; border-radius: 9999px; }
+    .status-ok { background-color: #d1fae5; color: #065f46; }
+    .status-error { background-color: #fee2e2; color: #7f1d1d; }
+    .btn { padding: 6px 12px; border-radius: 4px; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background-color: #3b82f6; color: white; }
+    .btn-primary:hover { background-color: #2563eb; }
+    .btn-secondary { background-color: #f3f4f6; color: #374151; }
+    .btn-secondary:hover { background-color: #e5e7eb; }
+    .btn-danger { background-color: #ef4444; color: white; }
+    .btn-danger:hover { background-color: #dc2626; }
+    .card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+    .input-field { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; margin-bottom: 8px; }
+    .label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 13px; color: #374151; }
+    @media (max-width: 640px) {
+      .bulk-controls { display: flex; flex-direction: column; gap: 8px; }
+      .bulk-controls > div { width: 100%; }
+    }
+    @media (min-width: 641px) {
+      .bulk-controls { display: flex; gap: 12px; align-items: flex-end; }
+      .bulk-controls > div { flex: 1; }
+    }
+    textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; font-family: inherit; }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    select {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
     }
     input[type="file"] { cursor: pointer; }
   </style>
-  <script>
-    // Banner de status simples para falhas de rede/API
-    function showStatus(msg, type = 'error') {
-      const el = document.getElementById('statusBanner');
-      if (!el) return;
-      el.textContent = msg || '';
-      el.className = 'px-3 py-2 text-sm rounded mb-3 ' + (type === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
-      el.classList.remove('hidden');
-    }
-    function hideStatus(){ const el = document.getElementById('statusBanner'); if (el) el.classList.add('hidden'); }
-  </script>
 </head>
+<body class="bg-gray-50">
+
+<main class="max-w-4xl mx-auto p-4 pb-8">
+  <!-- Header -->
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Painel Admin</h1>
+    <div class="flex gap-2">
+      <button class="btn btn-secondary" onclick="goBack()">Voltar</button>
+      <button class="btn btn-secondary" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <!-- Status Banner -->
+  <div id="statusBanner" class="hidden px-3 py-2 text-sm rounded mb-3"></div>
+
+  <!-- Criar Funcionário -->
+  <div class="card">
+    <h2 class="font-bold mb-3 text-lg text-gray-800">Criar Funcionário</h2>
+    <input type="text" id="nome" class="input-field" placeholder="Nome">
+    <input type="text" id="login" class="input-field" placeholder="Login">
+    <input type="password" id="senha" class="input-field" placeholder="Senha">
+    <label class="label">Foto (opcional)</label>
+    <input type="file" id="foto" class="input-field">
+    <button class="btn btn-primary" onclick="criarUser()">Criar Funcionário</button>
+  </div>
+
+  <!-- Criar Admin -->
+  <div class="card">
+    <h2 class="font-bold mb-3 text-lg text-gray-800">Criar Novo Admin</h2>
+    <input type="text" id="adminNome" class="input-field" placeholder="Nome do admin">
+    <input type="text" id="adminLogin" class="input-field" placeholder="Login">
+    <input type="password" id="adminSenha" class="input-field" placeholder="Senha">
+    <button class="btn btn-primary" onclick="criarAdmin()">Criar Admin</button>
+  </div>
+
+  <!-- Ações em Massa -->
+  <div class="card">
+    <h2 class="font-bold mb-3 text-lg text-gray-800">Ações em Massa</h2>
+    
+    <!-- Novo Ciclo -->
+    <div class="mb-4">
+      <h3 class="font-semibold mb-2 text-gray-700">Novo Ciclo (Reset para X pontos)</h3>
+      <div class="bulk-controls">
+        <div>
+          <label class="label">Valor</label>
+          <input type="number" id="resetValor" class="input-field" placeholder="Ex: 50" min="0" max="100" value="50">
+        </div>
+        <div>
+          <label class="label">Motivo (obrigatório)</label>
+          <input type="text" id="resetMotivo" class="input-field" placeholder="Ex: Ciclo mensal">
+        </div>
+        <button class="btn btn-primary" onclick="resetAll()" style="padding: 8px 16px; align-self: flex-end;">Aplicar Ciclo</button>
+      </div>
+    </div>
+
+    <!-- Adicionar/Subtrair -->
+    <div>
+      <h3 class="font-semibold mb-2 text-gray-700">Adicionar/Subtrair para Todos</h3>
+      <div class="bulk-controls">
+        <div>
+          <label class="label">Delta (+ ou -)</label>
+          <input type="number" id="bulkDelta" class="input-field" placeholder="Ex: +5 ou -3" value="0">
+        </div>
+        <div>
+          <label class="label">Motivo (obrigatório)</label>
+          <input type="text" id="bulkMotivo" class="input-field" placeholder="Ex: Bônus extra">
+        </div>
+        <button class="btn btn-primary" onclick="bulkAdd()" style="padding: 8px 16px; align-self: flex-end;">Aplicar Ajuste</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensagem de resultado -->
+  <div id="msg" class="mt-3 text-center text-sm"></div>
+
+  <!-- Funcionários -->
+  <div class="mt-8">
+    <h2 class="font-bold mb-4 text-lg text-gray-800">Funcionários</h2>
+    <div class="mb-3">
+      <input type="text" id="search" class="input-field" placeholder="🔍 Buscar por nome..." onkeyup="aplicarFiltro()">
+    </div>
+    <div id="lista" class="space-y-2">
+      <div class="text-gray-500 text-center py-4">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- Administradores -->
+  <div class="mt-8">
+    <div id="adminsLista" class="space-y-2">
+      <div class="text-gray-500 text-center py-4">Carregando...</div>
+    </div>
+  </div>
+
 </main>
 
-<!-- App script -->
-<script src="/js/admin.js"></script>
-function animateNumber(from, to, duration, onUpdate) {
-  const start = performance.now();
-  const diff = to - from;
-  function step(now) {
-    const t = Math.min(1, (now - start) / duration);
-    const eased = 1 - Math.pow(1 - t, 3);
-    onUpdate(from + diff * eased);
-    if (t < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
-
-async function removerUsuario(id){
-  if(!confirm('Remover este usuário? Esta ação não pode ser desfeita.')) return;
-  try {
-    const res = await fetch(`/usuarios/${id}`, { method: 'DELETE' });
-    const data = await res.json().catch(()=>({message:'Erro'}));
-    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
-    document.getElementById('msg').innerText = data.message || 'Removido';
-    carregarUsuarios(true);
-  } catch (_) {
-    showStatus('Falha ao remover usuário.');
-  }
-}
-
-async function criarAdmin(){
-  try {
-    const nome = document.getElementById('adminNome').value;
-    const login = document.getElementById('adminLogin').value;
-    const senha = document.getElementById('adminSenha').value;
-    const res = await fetch('/criar-admin2',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({login,senha,nome}) });
-    const txt = await res.text();
-    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
-    document.getElementById('msg').innerText = txt;
-    carregarUsuarios(true);
-  } catch (_) {
-    showStatus('Falha ao criar admin.');
-  }
-}
-
-// Inicialização
-carregarUsuarios();
-setInterval(()=>{
-  carregarUsuarios(true).then(()=>{
-    OPEN_HIST.forEach(id => renderHistoricoFor(id));
-  });
-}, 5000);
-
-async function toggleHistorico(id){
-  const el = document.getElementById('hist_'+id);
-  if (!el) return;
-  el.classList.toggle('hidden');
-  if (!el.classList.contains('hidden')){
-    try {
-      const res = await fetch('/historico/'+id);
-      const data = await res.json();
-      let html = '';
-      data.forEach(h=>{
-        if (h.tipo === 'ciclo') {
-          html += `<div class="flex items-center gap-2 my-2"><hr class="flex-1"><span class="text-xs text-gray-500 whitespace-nowrap">Novo ciclo</span><hr class="flex-1"></div>`;
-        } else {
-          const cor = h.pontos > 0 ? 'text-green-600' : 'text-red-500';
-          const dt = h.data ? new Date(h.data).toLocaleString() : '';
-          const editor = h.editor_nome ? `<span class=\"text-xs text-gray-400\"> · por ${h.editor_nome}</span>` : '';
-          html += `<div class=\"border-b pb-1\">
-            <div class=\"flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2\">
-              <span class=\"text-gray-500\">${dt}</span>
-              <span class=\"${cor} font-bold\">${h.pontos>0?'+':''}${h.pontos}</span>
-              <span class=\"text-gray-600\">${h.motivo || '-'}${editor}</span>
-            </div>
-          </div>`;
-        }
-      });
-      el.innerHTML = html || '<div class="text-gray-500">Sem histórico</div>';
-    } catch (_) {
-      el.innerHTML = '<div class="text-red-600">Falha ao carregar histórico</div>';
-    }
-  }
-}
-
-async function resetAll(){
-  const valor = Number(document.getElementById('resetValor').value);
-  const motivo = document.getElementById('resetMotivo').value;
-  try {
-    const res = await fetch('/pontos/reset_all', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({valor, motivo})});
-    const data = await res.json().catch(()=>({}));
-    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
-    document.getElementById('msg').innerText = data.message || '';
-    carregarUsuarios(true);
-  } catch(_){ showStatus('Falha ao aplicar novo ciclo.'); }
-}
-
-async function bulkAdd(){
-  const delta = Number(document.getElementById('bulkDelta').value);
-  const motivo = document.getElementById('bulkMotivo').value;
-  try {
-    const res = await fetch('/pontos/bulk_add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({delta, motivo})});
-    const data = await res.json().catch(()=>({}));
-    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
-    document.getElementById('msg').innerText = data.message || '';
-    carregarUsuarios(true);
-  } catch(_){ showStatus('Falha ao aplicar ajuste em massa.'); }
-}
-</script>
-
+<!-- Scripts -->
 <script>
-function goBack(){ if (history.length > 1) history.back(); else window.location.href = '/'; }
-async function logout(){ try { await fetch('/logout', { method: 'POST' }); } catch(_){} window.location.href='/'; }
+  // Global state for open panels
+  const OPEN_EDIT = new Set();
+  const OPEN_HIST = new Set();
+  let ALL_USERS = [];
+
+  // Status banner helpers
+  function showStatus(msg, type = 'error') {
+    const el = document.getElementById('statusBanner');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = 'px-3 py-2 text-sm rounded mb-3 ' + (type === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
+    el.classList.remove('hidden');
+  }
+  function hideStatus() {
+    const el = document.getElementById('statusBanner');
+    if (el) el.classList.add('hidden');
+  }
+
+  // Page navigation
+  function goBack() {
+    if (history.length > 1) history.back();
+    else window.location.href = '/';
+  }
+
+  async function logout() {
+    try {
+      await fetch('/logout', { method: 'POST' });
+    } catch (_) {}
+    window.location.href = '/';
+  }
 </script>
+
+<!-- External admin app logic -->
+<script src="/js/admin.js"></script>
 
 </body>
 </html>
