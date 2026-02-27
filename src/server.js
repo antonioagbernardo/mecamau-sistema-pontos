@@ -114,11 +114,11 @@ app.get("/criar-admin", (req, res) => {
 // 👑 CRIAR NOVO ADMIN
 //
 app.post("/criar-admin2", authRequired, adminRequired, (req,res)=>{
-  const {login,senha} = req.body;
+  const {login,senha,nome} = req.body;
   const hash = bcrypt.hashSync(String(senha||''), 10);
   db.run(
     "INSERT INTO users (nome,login,senha,is_admin) VALUES (?,?,?,1)",
-    ["Admin",login,hash],
+    [String(nome||'Admin'),login,hash],
     function(err){
       if(err){ console.log(err); return res.status(400).send("Erro ao criar admin"); }
       res.send("Admin criado 👑");

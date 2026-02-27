@@ -1,31 +1,36 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+}, 5000);
+
+async function renderHistoricoFor(id){
+  const el = document.getElementById('hist_'+id);
+  if (!el) return;
+  try {
+    const res = await fetch('/historico/'+id);
+    const data = await res.json();
+    let html = '';
+    data.forEach(h=>{
+      if (h.tipo === 'ciclo') {
+        html += `<div class="flex items-center gap-2 my-2"><hr class="flex-1"><span class="text-xs text-gray-500 whitespace-nowrap">Novo ciclo</span><hr class="flex-1"></div>`;
+      } else {
+        const cor = h.pontos > 0 ? 'text-green-600' : 'text-red-500';
+        const dt = h.data ? new Date(h.data).toLocaleString() : '';
+        const editor = h.editor_nome ? `<span class=\"text-xs text-gray-400\"> · por ${h.editor_nome}</span>` : '';
+        html += `<div class=\"border-b pb-1\">\n          <div class=\"flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2\">\n            <span class=\"text-gray-500\">${dt}</span>\n            <span class=\"${cor} font-bold\">${h.pontos>0?'+':''}${h.pontos}</span>\n            <span class=\"text-gray-600\">${h.motivo || '-'}${editor}</span>\n          </div>\n        </div>`;
+      }
+    });
+    el.innerHTML = html || '<div class="text-gray-500">Sem histórico</div>';
+  } catch (_) {
+    el.innerHTML = '<div class="text-red-600">Falha ao carregar histórico</div>';
+  }
+}
+
+async function toggleHistorico(id){
   <title>Painel Admin — Sistema de Pontos Mecamau</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* Listras animadas nas barras de progresso */
-    @keyframes moveStripes { 0% { background-position: 0 0; } 100% { background-position: 40px 0; } }
-    .progress-animated {
-      background-image: repeating-linear-gradient(
-        45deg,
-        rgba(255,255,255,0.2) 0,
-        rgba(255,255,255,0.2) 10px,
-        rgba(255,255,255,0.35) 10px,
-        rgba(255,255,255,0.35) 20px
-      );
-      background-size: 40px 40px;
-      animation: moveStripes 1.2s linear infinite;
-    }
-
-    /* Melhor UX para input file em mobile */
-    @media (max-width: 640px) {
-      input[type="file"] {
-        max-width: 180px;
-        width: auto;
-        display: inline-block;
+  const willOpen = el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if (willOpen) { OPEN_HIST.add(id); renderHistoricoFor(id); } else { OPEN_HIST.delete(id); }
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -56,7 +61,6 @@
     <h1 class="text-base sm:text-lg font-bold">Admin — Sistema de Pontos Mecamau</h1>
     <div class="ml-auto w-full sm:w-auto flex flex-wrap items-center gap-2 justify-end overflow-x-auto">
       <button onclick="goBack()" class="px-2 sm:px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm whitespace-nowrap">Voltar</button>
-      <a href="/dashboard" class="px-2 sm:px-3 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs sm:text-sm whitespace-nowrap">Meu painel</a>
       <button onclick="logout()" class="px-2 sm:px-3 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-xs sm:text-sm whitespace-nowrap">Sair</button>
     </div>
   </div>
@@ -83,7 +87,8 @@
     <!-- Bloco: Criar Admin -->
     <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
       <h2 class="text-xl font-bold mb-4">Criar novo admin</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <input id="adminNome" placeholder="Nome do admin" class="border p-3 rounded w-full"/>
         <input id="adminLogin" placeholder="Login admin" class="border p-3 rounded w-full"/>
         <input id="adminSenha" type="password" placeholder="Senha admin" class="border p-3 rounded w-full"/>
       </div>
@@ -143,6 +148,8 @@ ensureAdmin();
 
 let ALL_USERS = [];
 let FILTERED = [];
+const OPEN_EDIT = new Set();
+const OPEN_HIST = new Set();
 
 function aplicarFiltro(){
   const q = (document.getElementById('search')?.value || '').toLowerCase();
@@ -198,10 +205,10 @@ function renderLista(users){
 
       <div class="mt-3">
         <button onclick="toggleHistorico(${u.id})" class="text-sm text-blue-700 hover:underline">Ver histórico</button>
-        <div id="hist_${u.id}" class="hidden mt-2 text-sm"></div>
+        <div id="hist_${u.id}" class="${OPEN_HIST.has(u.id)?'':'hidden'} mt-2 text-sm"></div>
       </div>
 
-      <div id="edit_${u.id}" class="mt-4 hidden border-t pt-3">
+      <div id="edit_${u.id}" class="mt-4 ${OPEN_EDIT.has(u.id)?'':'hidden'} border-t pt-3">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}"/>
           <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login"/>
@@ -242,7 +249,7 @@ function renderLista(users){
           <button onclick="toggleEdit(${u.id})" class="flex-1 bg-blue-600 text-white px-3 py-2 rounded">Editar</button>
           <button onclick="removerUsuario(${u.id})" class="flex-1 bg-gray-700 text-white px-3 py-2 rounded">Remover</button>
         </div>
-        <div id="edit_${u.id}" class="mt-4 hidden border-t pt-3">
+        <div id="edit_${u.id}" class="mt-4 ${OPEN_EDIT.has(u.id)?'':'hidden'} border-t pt-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}"/>
             <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login"/>
@@ -318,7 +325,9 @@ async function criarUser(){
 function toggleEdit(id){
   const el = document.getElementById('edit_'+id);
   if(!el) return;
+  const willOpen = el.classList.contains('hidden');
   el.classList.toggle('hidden');
+  if (willOpen) OPEN_EDIT.add(id); else OPEN_EDIT.delete(id);
 }
 
 async function salvarEdicao(id){
@@ -372,9 +381,10 @@ async function removerUsuario(id){
 
 async function criarAdmin(){
   try {
+    const nome = document.getElementById('adminNome').value;
     const login = document.getElementById('adminLogin').value;
     const senha = document.getElementById('adminSenha').value;
-    const res = await fetch('/criar-admin2',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({login,senha}) });
+    const res = await fetch('/criar-admin2',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({login,senha,nome}) });
     const txt = await res.text();
     document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
     document.getElementById('msg').innerText = txt;
@@ -386,7 +396,11 @@ async function criarAdmin(){
 
 // Inicialização
 carregarUsuarios();
-setInterval(carregarUsuarios, 5000);
+setInterval(()=>{
+  carregarUsuarios(true).then(()=>{
+    OPEN_HIST.forEach(id => renderHistoricoFor(id));
+  });
+}, 5000);
 
 async function toggleHistorico(id){
   const el = document.getElementById('hist_'+id);
