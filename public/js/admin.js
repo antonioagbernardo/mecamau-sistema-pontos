@@ -15,6 +15,10 @@ let ALL_USERS = [];
 let FILTERED = [];
 const OPEN_EDIT = new Set();
 const OPEN_HIST = new Set();
+let IS_EDITING = false;
+let _editTimer = null;
+function startEditing(){ IS_EDITING = true; }
+function stopEditingSoon(){ clearTimeout(_editTimer); _editTimer = setTimeout(()=>{ IS_EDITING = false; }, 1200); }
 
 console.log('[admin.js] Chamando ensureAdmin...');
 ensureAdmin().catch(e => console.error('[admin.js] ensureAdmin falhou:', e));
@@ -60,8 +64,8 @@ function renderLista(users){
 
       ${u.is_admin ? '' : `
       <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-        <input id="motivo_${u.id}" placeholder="Motivo (obrigatório)" class="border p-2 rounded w-full"/>
-        <input id="valor_${u.id}" type="number" class="border p-2 rounded w-full" placeholder="ex: 15 ou -5"/>
+        <input id="motivo_${u.id}" placeholder="Motivo (obrigatório)" class="border p-2 rounded w-full" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
+        <input id="valor_${u.id}" type="number" class="border p-2 rounded w-full" placeholder="ex: 15 ou -5" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
         <button onclick="aplicarPontos(${u.id})" class="bg-green-600 text-white px-3 py-2 rounded w-full">Aplicar pontos</button>
       </div>
       `}
@@ -78,13 +82,13 @@ function renderLista(users){
 
       <div id="edit_${u.id}" class="mt-4 ${OPEN_EDIT.has(u.id)?'':'hidden'} border-t pt-3">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}"/>
-          <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login"/>
-          <input id="ed_senha_${u.id}" class="border p-2 rounded" placeholder="Nova senha (opcional)"/>
+          <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
+          <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
+          <input id="ed_senha_${u.id}" class="border p-2 rounded" placeholder="Nova senha (opcional)" onfocus="startEditing()" oninput="startEditing()" onblur="stopEditingSoon()"/>
           <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" id="ed_admin_${u.id}" ${u.is_admin? 'checked' : ''} /> É admin
+            <input type="checkbox" id="ed_admin_${u.id}" ${u.is_admin? 'checked' : ''} onchange="startEditing()" onblur="stopEditingSoon()"/> É admin
           </label>
-          <input type="file" id="ed_foto_${u.id}" class="border p-2 rounded"/>
+          <input type="file" id="ed_foto_${u.id}" class="border p-2 rounded" onfocus="startEditing()" onchange="startEditing()" onblur="stopEditingSoon()"/>
         </div>
         <div class="flex gap-2 mt-3">
           <button onclick="salvarEdicao(${u.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Salvar</button>
@@ -154,6 +158,7 @@ async function carregarUsuarios(manual=false){
 }
 
 async function aplicarPontos(id){
+  IS_EDITING = true;
   try {
     const motivo = document.getElementById('motivo_'+id).value;
     const valor = Number(document.getElementById('valor_'+id).value);
@@ -173,10 +178,13 @@ async function aplicarPontos(id){
     msg.innerText = data.message || '';
   } catch (_) {
     if (typeof showStatus === 'function') showStatus('Falha ao atualizar pontos.');
+  } finally {
+    stopEditingSoon();
   }
 }
 
 async function criarUser(){
+  IS_EDITING = true;
   try {
     const form = new FormData();
     form.append('nome', document.getElementById('nome').value);
@@ -192,6 +200,8 @@ async function criarUser(){
     carregarUsuarios(true);
   } catch (_) {
     if (typeof showStatus === 'function') showStatus('Falha ao criar funcionário.');
+  } finally {
+    stopEditingSoon();
   }
 }
 
@@ -204,6 +214,7 @@ function toggleEdit(id){
 }
 
 async function salvarEdicao(id){
+  IS_EDITING = true;
   try {
     const form = new FormData();
     const nome = document.getElementById('ed_nome_'+id)?.value;
@@ -224,6 +235,8 @@ async function salvarEdicao(id){
     carregarUsuarios(true);
   } catch (_) {
     if (typeof showStatus === 'function') showStatus('Falha ao salvar edição.');
+  } finally {
+    stopEditingSoon();
   }
 }
 
@@ -242,6 +255,7 @@ function animateNumber(from, to, duration, onUpdate) {
 
 async function removerUsuario(id){
   if(!confirm('Remover este usuário? Esta ação não pode ser desfeita.')) return;
+  IS_EDITING = true;
   try {
     const res = await fetch(`/usuarios/${id}`, { method: 'DELETE' });
     const data = await res.json().catch(()=>({message:'Erro'}));
@@ -251,10 +265,13 @@ async function removerUsuario(id){
     carregarUsuarios(true);
   } catch (_) {
     if (typeof showStatus === 'function') showStatus('Falha ao remover usuário.');
+  } finally {
+    stopEditingSoon();
   }
 }
 
 async function criarAdmin(){
+  IS_EDITING = true;
   try {
     const nome = document.getElementById('adminNome').value;
     const login = document.getElementById('adminLogin').value;
@@ -267,6 +284,8 @@ async function criarAdmin(){
     carregarUsuarios(true);
   } catch (_) {
     if (typeof showStatus === 'function') showStatus('Falha ao criar admin.');
+  } finally {
+    stopEditingSoon();
   }
 }
 
@@ -314,6 +333,7 @@ setTimeout(() => {
   carregarUsuarios();
   console.log('[admin.js] Configurando setInterval para re-carregar a cada 5s');
   setInterval(()=>{
+    if (IS_EDITING) return; // pausa auto-refresh enquanto há edição
     carregarUsuarios(true).then(()=>{
       OPEN_HIST.forEach(id => renderHistoricoFor(id));
     });
@@ -330,6 +350,8 @@ window.salvarEdicao = salvarEdicao;
 window.removerUsuario = removerUsuario;
 window.criarAdmin = criarAdmin;
 window.toggleHistorico = toggleHistorico;
+window.startEditing = startEditing;
+window.stopEditingSoon = stopEditingSoon;
 window.resetAll = async function(){
   const valor = Number(document.getElementById('resetValor').value);
   const motivo = document.getElementById('resetMotivo').value;
