@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Regras — Sistema de Pontos Mecamau</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<header class="bg-white border-b shadow-sm sticky top-0 z-10">
+  <div class="max-w-3xl mx-auto px-2 sm:px-4 py-2 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3">
+    <img src="/logos/mecamau_logo.png" alt="Mecamau" class="w-7 h-7 sm:w-8 sm:h-8 object-contain"/>
+    <h1 class="text-base sm:text-lg font-bold">Regras da Recompensa</h1>
+    <div class="ml-auto w-full sm:w-auto flex flex-wrap items-center gap-2 justify-end overflow-x-auto">
+      <a href="/dashboard" class="px-2 sm:px-3 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs sm:text-sm whitespace-nowrap">Meu painel</a>
+      <a href="/admin" id="navAdmin" class="hidden px-2 sm:px-3 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs sm:text-sm whitespace-nowrap">Admin</a>
+      <button onclick="logout()" class="px-2 sm:px-3 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-xs sm:text-sm whitespace-nowrap">Sair</button>
+    </div>
+  </div>
+</header>
+
+<main class="p-4">
+  <div class="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+    <div id="viewMode" class="space-y-4">
+      <div>
+        <h2 class="text-lg font-semibold mb-1">Regras e Objetivo</h2>
+        <div id="vTexto" class="prose max-w-none whitespace-pre-wrap"></div>
+      </div>
+    </div>
+
+    <div id="editMode" class="hidden space-y-3 mt-6">
+      <h2 class="text-lg font-semibold">Editar</h2>
+      <textarea id="eTexto" class="border p-3 rounded w-full min-h-[240px]" placeholder="Descreva aqui as regras e o objetivo do ciclo..."></textarea>
+      <div class="flex gap-2">
+        <button onclick="salvar()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Salvar</button>
+        <span id="msg" class="self-center text-sm"></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+let isAdmin = false;
+async function getMe(){
+  const res = await fetch('/me');
+  if (!res.ok) { window.location.href='/'; return null; }
+  const me = await res.json();
+  isAdmin = !!me.is_admin;
+  const navAdmin = document.getElementById('navAdmin');
+  if (navAdmin) navAdmin.classList.toggle('hidden', !isAdmin);
+  return me;
+}
+
+async function carregar(){
+  await getMe();
+  const res = await fetch('/regras-data');
+  const data = await res.json().catch(()=>({texto:''}));
+  document.getElementById('vTexto').textContent = data.texto || '—';
+  if (isAdmin) {
+    document.getElementById('editMode').classList.remove('hidden');
+    document.getElementById('eTexto').value = data.texto || '';
+  }
+}
+
+async function salvar(){
+  const texto = document.getElementById('eTexto').value;
+  const res = await fetch('/regras-data', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto}) });
+  const data = await res.json().catch(()=>({}));
+  const msg = document.getElementById('msg');
+  msg.className = res.ok ? 'text-green-600' : 'text-red-600';
+  msg.textContent = data.message || (res.ok? 'Salvo' : 'Erro ao salvar');
+  carregar();
+}
+
+function goBack(){ if (history.length > 1) history.back(); else window.location.href = '/'; }
+async function logout(){ try { await fetch('/logout', { method: 'POST' }); } catch(_){} window.location.href='/'; }
+
+carregar();
+</script>
+
+</body>
+</html>

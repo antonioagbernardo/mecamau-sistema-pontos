@@ -92,10 +92,35 @@
 
     <!-- Bloco: Lista de funcionários -->
     <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
-      <div class="flex items-center justify-between gap-2 mb-3">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
         <h2 class="text-xl font-bold">Funcionários</h2>
-        <button onclick="carregarUsuarios(true)" class="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-sm">Recarregar</button>
+        <div class="flex items-center gap-2 w-full md:w-auto">
+          <input id="search" class="border p-2 rounded w-full md:w-64" placeholder="Buscar por nome" oninput="aplicarFiltro()" />
+          <button onclick="carregarUsuarios(true)" class="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-sm">Recarregar</button>
+          <a href="/regras" class="px-3 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm">Regras</a>
+        </div>
       </div>
+
+      <!-- Ações em massa -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <div class="border rounded p-3">
+          <h3 class="font-semibold mb-2">Novo ciclo — definir pontos de todos</h3>
+          <div class="flex gap-2 items-center">
+            <input id="resetValor" type="number" min="0" max="100" class="border p-2 rounded w-24" placeholder="0-100"/>
+            <input id="resetMotivo" class="border p-2 rounded flex-1" placeholder="Motivo (obrigatório)"/>
+            <button onclick="resetAll()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded">Aplicar</button>
+          </div>
+        </div>
+        <div class="border rounded p-3">
+          <h3 class="font-semibold mb-2">Adicionar/Subtrair para todos</h3>
+          <div class="flex gap-2 items-center">
+            <input id="bulkDelta" type="number" class="border p-2 rounded w-24" placeholder="ex: 15 ou -5"/>
+            <input id="bulkMotivo" class="border p-2 rounded flex-1" placeholder="Motivo (obrigatório)"/>
+            <button onclick="bulkAdd()" class="bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded">Aplicar</button>
+          </div>
+        </div>
+      </div>
+
       <div id="lista"></div>
     </div>
   </div>
@@ -115,83 +140,100 @@ async function ensureAdmin(){
 }
 ensureAdmin();
 
+let ALL_USERS = [];
+let FILTERED = [];
+
+function aplicarFiltro(){
+  const q = (document.getElementById('search')?.value || '').toLowerCase();
+  FILTERED = !q ? ALL_USERS : ALL_USERS.filter(u => (u.nome||'').toLowerCase().includes(q));
+  renderLista(FILTERED);
+}
+
+function renderLista(users){
+  let html = '';
+  users.forEach(u => {
+    const pct = Math.max(0, Math.min(u.pontos || 0, 100));
+    const color = (u.pontos||0) < 40 ? '#ef4444' : ((u.pontos||0) < 80 ? '#f59e0b' : '#10b981');
+    html += `
+    <div class="border p-4 rounded mb-3 bg-gray-50 min-w-0 break-words">
+      <div class="flex flex-col sm:flex-row items-center gap-4">
+        <img src="${u.foto?'/uploads/'+u.foto:'https://i.imgur.com/6VBx3io.png'}"
+            class="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover flex-shrink-0"/>
+
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <b class="truncate sm:whitespace-normal sm:overflow-visible">${u.nome}</b>
+            ${u.is_admin ? '<span class="text-purple-600 text-xs bg-purple-100 px-2 py-0.5 rounded">ADMIN</span>' : ''}
+          </div>
+          <div class="text-sm text-gray-500">Pontos: <span id="pts_${u.id}">${u.pontos||0}</span></div>
+          <div class="w-full bg-gray-200 rounded-full h-4 mt-1 overflow-hidden relative">
+            <div id="bar_${u.id}" class="h-4 rounded-full transition-all duration-700 ease-out progress-animated" style="width:${pct}%; background-color:${color}"></div>
+            <span id="bar_text_${u.id}" class="absolute inset-0 flex items-center justify-center text-[10px]">${u.pontos||0} pts</span>
+          </div>
+        </div>
+
+        <div class="hidden sm:flex items-center gap-1 flex-shrink-0 self-center">
+          <button onclick="toggleEdit(${u.id})" class="bg-blue-600 text-white px-3 py-1 rounded">Editar</button>
+          <button onclick="removerUsuario(${u.id})" class="bg-gray-700 text-white px-3 py-1 rounded">Remover</button>
+        </div>
+      </div>
+
+      ${u.is_admin ? '' : `
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+        <input id="motivo_${u.id}" placeholder="Motivo (obrigatório)" class="border p-2 rounded w-full"/>
+        <input id="valor_${u.id}" type="number" class="border p-2 rounded w-full" placeholder="ex: 15 ou -5"/>
+        <button onclick="aplicarPontos(${u.id})" class="bg-green-600 text-white px-3 py-2 rounded w-full">Aplicar pontos</button>
+      </div>
+      `}
+
+      <div class="sm:hidden flex gap-2 mt-3 flex-wrap">
+        <button onclick="toggleEdit(${u.id})" class="flex-1 bg-blue-600 text-white px-3 py-2 rounded">Editar</button>
+        <button onclick="removerUsuario(${u.id})" class="flex-1 bg-gray-700 text-white px-3 py-2 rounded">Remover</button>
+      </div>
+
+      <div class="mt-3">
+        <button onclick="toggleHistorico(${u.id})" class="text-sm text-blue-700 hover:underline">Ver histórico</button>
+        <div id="hist_${u.id}" class="hidden mt-2 text-sm"></div>
+      </div>
+
+      <div id="edit_${u.id}" class="mt-4 hidden border-t pt-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}"/>
+          <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login"/>
+          <input id="ed_senha_${u.id}" class="border p-2 rounded" placeholder="Nova senha (opcional)"/>
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" id="ed_admin_${u.id}" ${u.is_admin? 'checked' : ''} /> É admin
+          </label>
+          <input type="file" id="ed_foto_${u.id}" class="border p-2 rounded"/>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="salvarEdicao(${u.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Salvar</button>
+          <button onclick="removerUsuario(${u.id})" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded">Remover</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('lista').innerHTML = html;
+}
+
 async function carregarUsuarios(manual=false){
   try {
     const res = await fetch('/usuarios');
     if (!res.ok) throw new Error('HTTP '+res.status);
-    const users = await res.json();
+    ALL_USERS = await res.json();
     hideStatus();
-
-    let html = '';
-    users.forEach(u => {
-      const pct = Math.max(0, Math.min(u.pontos || 0, 100));
-      const color = (u.pontos||0) < 40 ? '#ef4444' : ((u.pontos||0) < 80 ? '#f59e0b' : '#10b981');
-      html += `
-      <div class="border p-4 rounded mb-3 bg-gray-50 min-w-0 break-words">
-        <div class="flex flex-col sm:flex-row items-center gap-4">
-          <img src="${u.foto?'/uploads/'+u.foto:'https://i.imgur.com/6VBx3io.png'}"
-              class="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover flex-shrink-0"/>
-
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <b class="truncate sm:whitespace-normal sm:overflow-visible">${u.nome}</b>
-              ${u.is_admin ? '<span class="text-purple-600 text-xs bg-purple-100 px-2 py-0.5 rounded">ADMIN</span>' : ''}
-            </div>
-            <div class="text-sm text-gray-500">Pontos: <span id="pts_${u.id}">${u.pontos||0}</span></div>
-            <div class="w-full bg-gray-200 rounded-full h-4 mt-1 overflow-hidden relative">
-              <div id="bar_${u.id}" class="h-4 rounded-full transition-all duration-700 ease-out progress-animated" style="width:${pct}%; background-color:${color}"></div>
-              <span id="bar_text_${u.id}" class="absolute inset-0 flex items-center justify-center text-[10px]">${u.pontos||0} pts</span>
-            </div>
-          </div>
-
-          <div class="hidden sm:flex items-center gap-1 flex-shrink-0 self-center">
-            <button onclick="toggleEdit(${u.id})" class="bg-blue-600 text-white px-3 py-1 rounded">Editar</button>
-            <button onclick="removerUsuario(${u.id})" class="bg-gray-700 text-white px-3 py-1 rounded">Remover</button>
-          </div>
-        </div>
-
-        <div class="mt-3 flex flex-col sm:flex-row sm:items-end gap-2">
-          <input id="motivo_${u.id}" placeholder="Motivo" class="border p-2 rounded flex-1"/>
-          <div class="flex gap-2">
-            <button onclick="alterar(${u.id},10)" class="bg-green-600 text-white px-3 py-2 rounded w-full sm:w-auto">+10</button>
-            <button onclick="alterar(${u.id},-5)" class="bg-red-600 text-white px-3 py-2 rounded w-full sm:w-auto">-5</button>
-          </div>
-        </div>
-
-        <div class="sm:hidden flex gap-2 mt-3 flex-wrap">
-          <button onclick="toggleEdit(${u.id})" class="flex-1 bg-blue-600 text-white px-3 py-2 rounded">Editar</button>
-          <button onclick="removerUsuario(${u.id})" class="flex-1 bg-gray-700 text-white px-3 py-2 rounded">Remover</button>
-        </div>
-
-        <div id="edit_${u.id}" class="mt-4 hidden border-t pt-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input id="ed_nome_${u.id}" class="border p-2 rounded" placeholder="Nome" value="${u.nome}"/>
-            <input id="ed_login_${u.id}" class="border p-2 rounded" placeholder="Login"/>
-            <input id="ed_senha_${u.id}" class="border p-2 rounded" placeholder="Nova senha (opcional)"/>
-            <label class="flex items-center gap-2 text-sm">
-              <input type="checkbox" id="ed_admin_${u.id}" ${u.is_admin? 'checked' : ''} /> É admin
-            </label>
-            <input type="file" id="ed_foto_${u.id}" class="border p-2 rounded"/>
-          </div>
-          <div class="flex gap-2 mt-3">
-            <button onclick="salvarEdicao(${u.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Salvar</button>
-            <button onclick="removerUsuario(${u.id})" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded">Remover</button>
-          </div>
-        </div>
-      </div>`;
-    });
-
-    document.getElementById('lista').innerHTML = html;
+    aplicarFiltro();
   } catch (e) {
     if (manual) console.error(e);
     showStatus('Falha ao carregar lista de usuários.');
   }
 }
 
-async function alterar(id,pontos){
+async function aplicarPontos(id){
   try {
     const motivo = document.getElementById('motivo_'+id).value;
-    const res = await fetch('/pontos',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId:id,pontos,motivo}) });
+    const valor = Number(document.getElementById('valor_'+id).value);
+    const res = await fetch('/pontos',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId:id,pontos:valor,motivo}) });
     const data = await res.json().catch(()=>({}));
     if(data.pontos !== undefined){
       document.getElementById('pts_'+id).innerText = data.pontos;
@@ -202,6 +244,7 @@ async function alterar(id,pontos){
       if (bar) { bar.style.backgroundColor = color; requestAnimationFrame(()=>{ bar.style.width = pct + '%'; }); }
       if (barText) { const current = Number(barText.textContent.replace(/[^0-9]/g,'')) || 0; animateNumber(current, data.pontos, 600, (val)=>{ barText.textContent = Math.round(val) + ' pts'; }); }
     }
+    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
     document.getElementById('msg').innerText = data.message || '';
   } catch (_) {
     showStatus('Falha ao atualizar pontos.');
@@ -298,6 +341,55 @@ async function criarAdmin(){
 // Inicialização
 carregarUsuarios();
 setInterval(carregarUsuarios, 5000);
+
+async function toggleHistorico(id){
+  const el = document.getElementById('hist_'+id);
+  if (!el) return;
+  el.classList.toggle('hidden');
+  if (!el.classList.contains('hidden')){
+    try {
+      const res = await fetch('/historico/'+id);
+      const data = await res.json();
+      let html = '';
+      data.forEach(h=>{
+        if (h.tipo === 'ciclo') {
+          html += `<div class="flex items-center gap-2 my-2"><hr class="flex-1"><span class="text-xs text-gray-500 whitespace-nowrap">Novo ciclo</span><hr class="flex-1"></div>`;
+        } else {
+          const cor = h.pontos > 0 ? 'text-green-600' : 'text-red-500';
+          const dt = h.data ? new Date(h.data).toLocaleString() : '';
+          html += `<div class="flex justify-between border-b pb-1"><span class="text-gray-500 mr-2">${dt}</span><span class="${cor} font-bold">${h.pontos>0?'+':''}${h.pontos}</span><span class="text-gray-600 ml-2">${h.motivo || '-'}</span></div>`;
+        }
+      });
+      el.innerHTML = html || '<div class="text-gray-500">Sem histórico</div>';
+    } catch (_) {
+      el.innerHTML = '<div class="text-red-600">Falha ao carregar histórico</div>';
+    }
+  }
+}
+
+async function resetAll(){
+  const valor = Number(document.getElementById('resetValor').value);
+  const motivo = document.getElementById('resetMotivo').value;
+  try {
+    const res = await fetch('/pontos/reset_all', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({valor, motivo})});
+    const data = await res.json().catch(()=>({}));
+    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
+    document.getElementById('msg').innerText = data.message || '';
+    carregarUsuarios(true);
+  } catch(_){ showStatus('Falha ao aplicar novo ciclo.'); }
+}
+
+async function bulkAdd(){
+  const delta = Number(document.getElementById('bulkDelta').value);
+  const motivo = document.getElementById('bulkMotivo').value;
+  try {
+    const res = await fetch('/pontos/bulk_add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({delta, motivo})});
+    const data = await res.json().catch(()=>({}));
+    document.getElementById('msg').className = res.ok ? 'mt-3 text-green-600 text-center text-sm' : 'mt-3 text-red-600 text-center text-sm';
+    document.getElementById('msg').innerText = data.message || '';
+    carregarUsuarios(true);
+  } catch(_){ showStatus('Falha ao aplicar ajuste em massa.'); }
+}
 </script>
 
 <script>

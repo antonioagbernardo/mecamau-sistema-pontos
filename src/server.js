@@ -88,6 +88,7 @@ app.get("/healthz", (req, res) => res.status(200).json({ status: "ok" }));
 const sendFile = (p) => (req,res)=> res.sendFile(path.join(process.cwd(), 'public', p));
 app.get(["/admin","/admin.html"], authRequired, adminRequired, sendFile('admin.html'));
 app.get(["/dashboard","/dashboard.html"], authRequired, sendFile('dashboard.html'));
+app.get(["/regras","/regras.html"], authRequired, sendFile('regras.html'));
 // Public index stays public
 app.use(express.static("public"));
 
@@ -180,44 +181,38 @@ app.post("/criar-funcionario", authRequired, adminRequired, upload.single("foto"
 //
 app.post("/pontos", authRequired, adminRequired, (req,res)=>{
   let {userId,pontos,motivo} = req.body;
-
   userId = Number(userId);
-  pontos = Number(pontos);
+  const delta = Number(pontos);
+  const motivoTrim = String(motivo||'').trim();
 
-  if(!userId || isNaN(pontos)){
+  if(!userId || isNaN(delta)){
     return res.status(400).json({message:"Dados inválidos"});
   }
+  if(!motivoTrim){
+    return res.status(400).json({message:"Motivo é obrigatório"});
+  }
 
-  db.run(
-    "UPDATE users SET pontos = pontos + ? WHERE id=?",
-    [pontos,userId],
-    function(err){
-      if(err){
-        console.log(err);
-        return res.status(500).json({message:"Erro ao atualizar"});
-      }
+  // Buscar pontos atuais para calcular delta aplicado e limitar a 0..100 e impedir ajuste em admins
+  db.get("SELECT pontos, is_admin FROM users WHERE id=\?", [userId], (selErr, row) => {
+    if (selErr) return res.status(500).json({message:"Erro ao buscar usuário"});
+    if (!row) return res.status(404).json({message:"Usuário não encontrado"});
+    if (Number(row.is_admin) === 1) return res.status(400).json({message:"Apenas funcionários podem receber pontos"});
 
-      if(this.changes===0){
-        return res.status(404).json({message:"Usuário não encontrado"});
-      }
+    const atual = Number(row.pontos||0);
+    const novo = Math.max(0, Math.min(atual + delta, 100));
+    const aplicado = novo - atual; // pode ser menor que delta quando atingiu teto
+
+    db.run("UPDATE users SET pontos=? WHERE id=?", [novo, userId], function(updErr){
+      if (updErr) return res.status(500).json({message:"Erro ao atualizar"});
 
       db.run(
         "INSERT INTO historico (user_id,tipo,pontos,motivo) VALUES (?,?,?,?)",
-        [userId, pontos>0?"ganhou":"perdeu", pontos, motivo||""]
+        [userId, aplicado>=0?"ganhou":"perdeu", aplicado, motivoTrim]
       );
 
-      db.get(
-        "SELECT pontos FROM users WHERE id=?",
-        [userId],
-        (err,row)=>{
-          res.json({
-            message:"Pontos atualizados ⭐",
-            pontos: row?.pontos || 0
-          });
-        }
-      );
-    }
-  );
+      res.json({ message:"Pontos atualizados ⭐", pontos: novo });
+    });
+  });
 });
 
 //
@@ -391,6 +386,88 @@ app.delete("/usuarios/:id", authRequired, adminRequired, (req, res) => {
         res.json({ message: "Usuário removido" });
       });
     });
+  });
+});
+
+// 🔁 Operações em massa
+app.post('/pontos/reset_all', authRequired, adminRequired, (req,res)=>{
+  let { valor, motivo } = req.body;
+  const motivoTrim = String(motivo||'').trim();
+  let alvo = Number(valor);
+  if (isNaN(alvo)) return res.status(400).json({message:'Valor inválido'});
+  if (!motivoTrim) return res.status(400).json({message:'Motivo é obrigatório'});
+  alvo = Math.max(0, Math.min(alvo, 100));
+
+  db.all("SELECT id FROM users WHERE is_admin=0", [], (err, users)=>{
+    if (err) return res.status(500).json({message:'Erro ao buscar usuários'});
+    const ids = users.map(u=>u.id);
+    const placeholders = ids.map(_=>'?').join(',');
+    const runUpdate = (cb)=> db.run(`UPDATE users SET pontos=? WHERE is_admin=0`, [alvo], cb);
+    runUpdate((updErr)=>{
+      if (updErr) return res.status(500).json({message:'Erro ao aplicar reset'});
+      const stmt = db.prepare("INSERT INTO historico (user_id,tipo,pontos,motivo) VALUES (?,?,?,?)");
+      ids.forEach(id=>{
+        stmt.run([id, 'ciclo', alvo, `Novo ciclo: reset para ${alvo}. ${motivoTrim}`]);
+      });
+      stmt.finalize(()=> res.json({message:`Pontos de todos definidos em ${alvo}` }));
+    });
+  });
+});
+
+app.post('/pontos/bulk_add', authRequired, adminRequired, (req,res)=>{
+  let { delta, motivo } = req.body;
+  const motivoTrim = String(motivo||'').trim();
+  const d = Number(delta);
+  if (isNaN(d)) return res.status(400).json({message:'Delta inválido'});
+  if (!motivoTrim) return res.status(400).json({message:'Motivo é obrigatório'});
+
+  db.all("SELECT id, pontos FROM users WHERE is_admin=0", [], (err, users)=>{
+    if (err) return res.status(500).json({message:'Erro ao buscar usuários'});
+    const stmtUpd = db.prepare("UPDATE users SET pontos=? WHERE id=?");
+    const stmtHist = db.prepare("INSERT INTO historico (user_id,tipo,pontos,motivo) VALUES (?,?,?,?)");
+    users.forEach(u=>{
+      const novo = Math.max(0, Math.min((u.pontos||0) + d, 100));
+      const aplicado = novo - (u.pontos||0);
+      stmtUpd.run([novo, u.id]);
+      stmtHist.run([u.id, aplicado>=0?'ganhou':'perdeu', aplicado, motivoTrim]);
+    });
+    stmtUpd.finalize(()=>{
+      stmtHist.finalize(()=> res.json({message:`Pontos atualizados para ${users.length} usuários`}));
+    });
+  });
+});
+
+// 📘 Regras (lido por todos, editado por admin)
+function getSetting(key, cb){
+  db.get("SELECT value FROM settings WHERE key=?", [key], (err,row)=>{
+    if (err) return cb(err);
+    cb(null, row?.value || "");
+  });
+}
+function setSetting(key, value, cb){
+  db.run("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [key, value], cb);
+}
+
+app.get('/regras-data', authRequired, (req,res)=>{
+  // Preferir texto único 'regras_texto'; manter compat com chaves antigas, combinando se necessário
+  getSetting('regras_texto', (e0, texto)=>{
+    if (!e0 && (texto||'').trim()) return res.json({ texto });
+    // Fallback às chaves antigas
+    getSetting('regras', (e1, regras)=>{
+      getSetting('premio', (e2, premio)=>{
+        const combinado = [premio && ("Objetivo: "+premio), regras].filter(Boolean).join("\n\n");
+        return res.json({ texto: combinado });
+      });
+    });
+  });
+});
+
+app.put('/regras-data', authRequired, adminRequired, (req,res)=>{
+  const { texto, regras, premio } = req.body || {};
+  const finalTexto = typeof texto !== 'undefined' ? String(texto||'') : [premio && ("Objetivo: "+premio), regras].filter(Boolean).join("\n\n");
+  setSetting('regras_texto', finalTexto, (e)=>{
+    if (e) return res.status(500).json({message:'Erro ao salvar regras'});
+    res.json({message:'Regras atualizadas'});
   });
 });
 

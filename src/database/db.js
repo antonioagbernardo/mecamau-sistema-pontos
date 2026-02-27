@@ -75,6 +75,14 @@ function migrations(db){
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
   `);
+
+  // ⚙️ CONFIGURAÇÕES (key/value) — usado para Regras e Prêmio
+  db.run(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )
+  `);
   });
 }
 

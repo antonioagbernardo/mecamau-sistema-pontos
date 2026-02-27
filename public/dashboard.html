@@ -154,14 +154,19 @@ async function carregar(){
 
   let html="";
   data.forEach(h=>{
-    const cor = h.pontos > 0 ? "text-green-600" : "text-red-500";
-
-    html += `
-      <div class="flex justify-between border-b pb-1">
-        <span class="${cor} font-bold">${h.pontos>0?'+':''}${h.pontos}</span>
-        <span class="text-gray-600">${h.motivo || '-'}</span>
-      </div>
-    `;
+    if (h.tipo === 'ciclo') {
+      html += `<div class="flex items-center gap-2 my-2"><hr class="flex-1"><span class="text-xs text-gray-500 whitespace-nowrap">Novo ciclo</span><hr class="flex-1"></div>`;
+    } else {
+      const cor = h.pontos > 0 ? "text-green-600" : "text-red-500";
+      const dt = h.data ? new Date(h.data).toLocaleString() : '';
+      html += `
+        <div class="grid grid-cols-[auto,auto,1fr] gap-2 border-b pb-1 items-baseline">
+          <span class="text-gray-500">${dt}</span>
+          <span class="${cor} font-bold">${h.pontos>0?'+':''}${h.pontos}</span>
+          <span class="text-gray-600">${h.motivo || '-'}</span>
+        </div>
+      `;
+    }
   });
 
   document.getElementById("historico").innerHTML = html;
