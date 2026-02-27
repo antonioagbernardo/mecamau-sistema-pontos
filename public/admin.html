@@ -140,25 +140,7 @@
 
 <!-- Scripts -->
 <script>
-  // Global state for open panels
-  const OPEN_EDIT = new Set();
-  const OPEN_HIST = new Set();
-  let ALL_USERS = [];
-
-  // Status banner helpers
-  function showStatus(msg, type = 'error') {
-    const el = document.getElementById('statusBanner');
-    if (!el) return;
-    el.textContent = msg || '';
-    el.className = 'px-3 py-2 text-sm rounded mb-3 ' + (type === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
-    el.classList.remove('hidden');
-  }
-  function hideStatus() {
-    const el = document.getElementById('statusBanner');
-    if (el) el.classList.add('hidden');
-  }
-
-  // Page navigation
+  // Helper functions for HTML (loaded before admin.js)
   function goBack() {
     if (history.length > 1) history.back();
     else window.location.href = '/';
@@ -169,6 +151,19 @@
       await fetch('/logout', { method: 'POST' });
     } catch (_) {}
     window.location.href = '/';
+  }
+
+  // Status helpers (called from admin.js)
+  function showStatus(msg, type = 'error') {
+    const el = document.getElementById('statusBanner');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = 'px-3 py-2 text-sm rounded mb-3 ' + (type === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
+    el.classList.remove('hidden');
+  }
+  function hideStatus() {
+    const el = document.getElementById('statusBanner');
+    if (el) el.classList.add('hidden');
   }
 </script>
 

@@ -1,4 +1,3 @@
-'use strict';
 
 // Garantia extra no client (servidor já protege rota)
 async function ensureAdmin(){
@@ -11,12 +10,14 @@ async function ensureAdmin(){
     if (typeof showStatus === 'function') showStatus('Falha ao verificar sessão.');
   }
 }
-ensureAdmin();
 
 let ALL_USERS = [];
 let FILTERED = [];
 const OPEN_EDIT = new Set();
 const OPEN_HIST = new Set();
+
+console.log('[admin.js] Chamando ensureAdmin...');
+ensureAdmin().catch(e => console.error('[admin.js] ensureAdmin falhou:', e));
 
 function aplicarFiltro(){
   const q = (document.getElementById('search')?.value || '').toLowerCase();
@@ -138,12 +139,15 @@ function renderLista(users){
 
 async function carregarUsuarios(manual=false){
   try {
+    console.log('[carregarUsuarios] Fetching /usuarios...');
     const res = await fetch('/usuarios');
     if (!res.ok) throw new Error('HTTP '+res.status);
     ALL_USERS = await res.json();
+    console.log('[carregarUsuarios] Carregou', ALL_USERS.length, 'usuários'); 
     if (typeof hideStatus === 'function') hideStatus();
     aplicarFiltro();
   } catch (e) {
+    console.error('[carregarUsuarios] Error:', e);
     if (manual) console.error(e);
     if (typeof showStatus === 'function') showStatus('Falha ao carregar lista de usuários.');
   }
@@ -305,13 +309,18 @@ async function toggleHistorico(id){
 }
 
 // Inicialização
-carregarUsuarios();
-setInterval(()=>{
-  carregarUsuarios(true).then(()=>{
-    OPEN_HIST.forEach(id => renderHistoricoFor(id));
-  });
-}, 5000);
+setTimeout(() => {
+  console.log('[admin.js] Iniciando carregamento de usuários...');
+  carregarUsuarios();
+  console.log('[admin.js] Configurando setInterval para re-carregar a cada 5s');
+  setInterval(()=>{
+    carregarUsuarios(true).then(()=>{
+      OPEN_HIST.forEach(id => renderHistoricoFor(id));
+    });
+  }, 5000);
+}, 100);
 
+console.log('[admin.js] Expondo funções globais...');
 // Expor funções ao escopo global para os onClicks inline
 window.aplicarFiltro = aplicarFiltro;
 window.aplicarPontos = aplicarPontos;
